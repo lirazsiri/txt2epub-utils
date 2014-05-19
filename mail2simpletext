@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Convert an e-mail to simple text
+"""Convert an e-mail to a simple text format
 
 * Extract body text from multi-part (e-mail with attachments)
 * Decrypts if necessary
@@ -51,8 +51,6 @@ def decode_payload(message):
             payload = codecs.decode(payload, charset)
         except:
             pass
-
-    payload = filter(lambda x: x in string.printable, payload)
 
     return payload
 
@@ -131,9 +129,25 @@ def filter_body_text(body):
 
     sio = StringIO()
 
+    # remove strip links
+    body = re.sub(r'https?://\S+', '', body)
+    body = re.sub(r'[=~\-]{3,}', ' ', body)
     
+    whitelist = string.digits + string.letters + string.punctuation + " \n"
+    body = filter(lambda x: x in whitelist, body)
 
-    print >> sio, body
+    linebreak = False
+    for line in body.splitlines():
+        line = line.strip()
+        if line:
+            if linebreak:
+                print >> sio, "\n"
+                linebreak = False
+
+            print >> sio, line,
+        else:
+            linebreak = True
+    
     inline_reply = extract_inline_reply(quoted)
     if inline_reply:
         print >> sio, "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
