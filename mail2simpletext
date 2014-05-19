@@ -1,0 +1,193 @@
+#!/usr/bin/python
+"""Convert an e-mail to simple text
+
+* Extract body text from multi-part (e-mail with attachments)
+* Decrypts if necessary
+
+Options:
+
+    -i  --inplace   Simplify e-mail in place
+
+"""
+
+import sys
+import email
+import getopt
+import quopri
+
+import re
+
+import executil
+
+from StringIO import StringIO
+
+def usage(e=None):
+    if e:
+        print >> sys.stderr, "error: " + str(e)
+    print >> sys.stderr, "Syntax: %s [ -i ] filename|- ..." % sys.argv[0]
+    print >> sys.stderr, __doc__.strip()
+    sys.exit(1)
+
+def decode_payload(message):
+    payload = message.get_payload()
+
+    if "PGP MESSAGE" in payload:
+        payload = executil.getoutput_popen(["gpg", "--batch"], input=payload)
+
+    if message['content-transfer-encoding'] == 'quoted-printable':
+        payload = quopri.decodestring(payload)
+
+    return payload
+
+def get_body_text(message):
+    if not message.is_multipart():
+        return decode_payload(message), message['content-type']
+
+    for part in message.get_payload():
+        if 'text/plain' in part['content-type']:
+            return decode_payload(part), part['content-type']
+
+        if 'encrypted message' in part['content-description']:
+            return get_body_text(email.message_from_string(decode_payload(part)))
+
+def split_quoted(body):
+    def match(s):
+        
+        m = re.match(r'(.*)^On\s[^\r\n]*wrote:\s*$(.*)', s, re.MULTILINE | re.DOTALL)
+        if m:
+            return m
+
+        m = re.match(r'(.*?)((?:^>+\s).*)', s, re.DOTALL | re.MULTILINE)
+        if m:
+            return m
+
+        return
+
+    m = match(body)
+    if not m:
+        return body, ''
+
+    prequote, postquote = m.groups()
+
+    def f(s):
+        return s.strip()
+
+    return f(prequote), f(postquote)
+
+def extract_inline_reply(quoted):
+    """Count number of lines of an inline reply"""
+
+    def parse_quoted(quoted):
+        top = []
+        middle = []
+        bottom = []
+
+        for line in quoted.splitlines():
+            if re.match(r'^>', line):
+                middle += bottom
+                bottom = []
+
+                middle.append(line)
+            else:
+                if not middle:
+                    top.append(line)
+                else:
+                    bottom.append(line)
+
+        def f(lines):
+            return "\n".join(lines)
+
+        return f(top), f(middle), f(bottom)
+
+    top, middle, bottom = parse_quoted(quoted)
+
+    reply_lines = [ line for line in middle.splitlines() 
+                    if line.strip() and not line.startswith('>') ]
+
+    if not reply_lines:
+        return
+
+    return "\n".join(reply_lines)
+    
+def filter_body_text(body):
+    body, quoted = split_quoted(body)
+
+    sio = StringIO()
+    
+    print >> sio, body
+    inline_reply = extract_inline_reply(quoted)
+    if inline_reply:
+        print >> sio, "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
+
+    return sio.getvalue().strip()
+
+def mailsimplify(fp):
+    old = email.message_from_file(fp)
+    text, content_type = get_body_text(old)
+
+    text = filter_body_text(text)
+
+    if content_type is None:
+        content_type = "text/plain"
+
+    new = email.Message.Message()
+    for header in ("Subject", "From", "To", "Date"):
+        new.add_header(header, old[header])
+
+    new.set_payload(text)
+    new.set_type(content_type)
+
+    return new
+
+def mail2rst(fp):
+    m = mailsimplify(fp)
+
+    sio = StringIO()
+    def header(field):
+        return m[field].replace('\n', '').replace('\t', ' ')
+        
+    # strip email addresses
+    sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', header('From'))
+
+    print >> sio, "From: " + sender
+    print >> sio, "Subject: " + header('Subject')
+
+    print >> sio
+    print >> sio, m.get_payload()
+
+    return sio.getvalue()
+
+def main():
+    try:
+        opts, args = getopt.gnu_getopt(sys.argv[1:], "ih", 
+                                       ["inplace"])
+    except getopt.GetoptError, e:
+        usage(e)
+
+    inplace = False
+    for opt, val in opts:
+        if opt == '-h':
+            usage()
+
+        if opt in ('-i', '--inplace'):
+            inplace = True
+
+    if not args:
+        usage()
+
+    for input in args:
+        if input == '-':
+            if inplace:
+                usage("can't use --inplace on stdin")
+            input_fp = sys.stdin
+        else:
+            input_fp = file(input)
+
+        rst = mail2rst(input_fp)
+        if not inplace:
+            print rst
+        else:
+            file(input, "w").write(str(rst))
+
+if __name__ == "__main__":
+    main()
