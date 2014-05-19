@@ -17,6 +17,11 @@ import quopri
 import codecs
 import string
 
+import time
+import rfc822
+
+from datetime import datetime
+
 import re
 
 import executil
@@ -153,6 +158,16 @@ def mailsimplify(fp):
 
     return new
 
+def parse_date(date):
+    if not date:
+        return
+
+    parsed = rfc822.parsedate(date)
+    if not parsed:
+        return
+
+    return datetime.fromtimestamp(time.mktime(parsed))
+
 def mail2simpletext(fp):
     m = mailsimplify(fp)
 
@@ -162,8 +177,12 @@ def mail2simpletext(fp):
         
     # strip email addresses
     sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', header('From'))
-
     print >> sio, "From: " + sender
+
+    dt = parse_date(header('Date'))
+    if dt:
+        print >> sio, "Date: " + dt.strftime("%A %B %d")
+
     print >> sio, "Subject: " + header('Subject')
 
     print >> sio
@@ -200,6 +219,7 @@ def main():
         simpletext = mail2simpletext(input_fp)
         if not inplace:
             print simpletext
+
         else:
             file(input, "w").write(str(simpletext))
 
