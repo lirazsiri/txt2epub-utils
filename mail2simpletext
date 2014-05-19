@@ -14,6 +14,7 @@ import sys
 import email
 import getopt
 import quopri
+import codecs
 
 import re
 
@@ -36,6 +37,14 @@ def decode_payload(message):
 
     if message['content-transfer-encoding'] == 'quoted-printable':
         payload = quopri.decodestring(payload)
+
+    m = re.search(r'charset=([\w\d\-]+)', message['content-type'])
+    if m:
+        charset = m.group(1)
+        try:
+            payload = codecs.decode(payload, charset)
+        except:
+            pass
 
     return payload
 
@@ -113,7 +122,9 @@ def filter_body_text(body):
     body, quoted = split_quoted(body)
 
     sio = StringIO()
+
     
+
     print >> sio, body
     inline_reply = extract_inline_reply(quoted)
     if inline_reply:
