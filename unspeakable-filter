@@ -1,0 +1,186 @@
+#!/usr/bin/env python
+
+import re
+import fileinput
+import time
+import rfc822
+import string
+
+from datetime import datetime
+from StringIO import StringIO
+
+def parse_date(date):
+    if not date:
+        return
+
+    parsed = rfc822.parsedate(date)
+    if not parsed:
+        return
+
+    return datetime.fromtimestamp(time.mktime(parsed))
+
+def filter_body_text(body):
+
+    def split_quoted(body):
+        def match(s):
+            
+            m = re.match(r'(.*)^On\s[^\r\n]*wrote:\s*$(.*)', s, re.MULTILINE | re.DOTALL)
+            if m:
+                return m
+
+            m = re.match(r'(.*?)((?:^>+\s).*)', s, re.DOTALL | re.MULTILINE)
+            if m:
+                return m
+
+            return
+
+        m = match(body)
+        if not m:
+            return body, ''
+
+        prequote, postquote = m.groups()
+
+        def f(s):
+            return s.strip()
+
+        return f(prequote), f(postquote)
+
+    body, quoted = split_quoted(body)
+    sio = StringIO()
+
+    # strip links
+    body = re.sub(r'https?://\S+', '', body)
+    body = re.sub(r'[=~\-]{3,}', ' ', body)
+    
+    whitelist = string.digits + string.letters + string.punctuation + " \n"
+    body = filter(lambda x: x in whitelist, body)
+
+    linebreak = False
+    for line in body.splitlines():
+        line = line.strip()
+        if line:
+            if linebreak:
+                print >> sio, "\n"
+                linebreak = False
+
+            print >> sio, line,
+        else:
+            linebreak = True
+    
+    def extract_inline_reply(quoted):
+        """Count number of lines of an inline reply"""
+
+        def parse_quoted(quoted):
+            top = []
+            middle = []
+            bottom = []
+
+            for line in quoted.splitlines():
+                if re.match(r'^>', line):
+                    middle += bottom
+                    bottom = []
+
+                    middle.append(line)
+                else:
+                    if not middle:
+                        top.append(line)
+                    else:
+                        bottom.append(line)
+
+            def f(lines):
+                return "\n".join(lines)
+
+            return f(top), f(middle), f(bottom)
+
+        top, middle, bottom = parse_quoted(quoted)
+
+        reply_lines = [ line for line in middle.splitlines() 
+                        if line.strip() and not line.startswith('>') ]
+
+        if not reply_lines:
+            return
+
+        return "\n".join(reply_lines)
+        
+    inline_reply = extract_inline_reply(quoted)
+    if inline_reply:
+        print >> sio, "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
+
+    return sio.getvalue().strip()
+
+
+
+def filter_headers(inputs):
+    def filter_header(line):
+        m = re.match('^(\S+):\s*(.*)', line, re.IGNORECASE)
+        if not m:
+            return line
+
+        field = m.group(1).lower()
+        value = m.group(2)
+
+        if field == 'to':
+            return
+
+        # strip email addresses
+        if field == 'from':
+            sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', value)
+            return "From: " + sender
+
+        if field == 'date':
+            dt = parse_date(value)
+            if dt:
+                return "Date: " + dt.strftime("%A %B %d")
+
+        return line
+
+    sio = StringIO()
+    for line in inputs:
+        line = filter_header(line)
+        if not line:
+            continue
+        print >> sio, line.strip()
+
+    return sio.getvalue()
+
+def parse(lines):
+    headerlines = []
+    bodylines = []
+
+    lastline_was_header = False
+
+    for line in lines:
+        m = re.match('^(From|Subject|Date|To):\s*(.*)', line, re.IGNORECASE)
+        if m:
+            if not lastline_was_header and bodylines:
+                yield (headerlines, bodylines)
+
+                headerlines = []
+                bodylines = []
+
+            headerlines.append(line)
+            lastline_was_header = True
+
+        else:
+            bodylines.append(line)
+            lastline_was_header = False
+
+    if bodylines:
+        yield (headerlines, bodylines)
+
+def main():
+
+    for headerinputs, bodyinputs in parse(fileinput.input()):
+        if headerinputs:
+            filtered = filter_headers(headerinputs)
+            if filtered:
+                print filtered
+
+        if not bodyinputs:
+            continue
+
+        body = "".join(bodyinputs).strip()
+        print filter_body_text(body)
+
+if __name__ == "__main__":
+    main()
