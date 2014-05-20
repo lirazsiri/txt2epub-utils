@@ -20,7 +20,6 @@ def parse_date(date):
     return datetime.fromtimestamp(time.mktime(parsed))
 
 def filter_body_text(body):
-
     def split_quoted(body):
         def match(s):
             
@@ -50,14 +49,22 @@ def filter_body_text(body):
 
     # strip links
     body = re.sub(r'https?://\S+', '', body)
-    body = re.sub(r'[=~\-]{3,}', ' ', body)
+
+    # strip underlines
+    body = re.sub(r'[=~\-\+]{3,}', ' ', body)
+
+    # put each list item on its own line
+    body = re.sub(r'^(\s*)[\-\*\+\~]+\s*', '\n\\1', body, 0, re.MULTILINE)
+
+    # strip long sequences of numbers
+    body = re.sub(r'(\s+\d+\s+){3,}', ' ', body)
     
     whitelist = string.digits + string.letters + string.punctuation + " \n"
     body = filter(lambda x: x in whitelist, body)
 
     linebreak = False
     for line in body.splitlines():
-        line = line.strip()
+        line = line.rstrip()
         if line:
             if linebreak:
                 print >> sio, "\n"
@@ -108,8 +115,6 @@ def filter_body_text(body):
 
     return sio.getvalue().strip()
 
-
-
 def filter_headers(inputs):
     def filter_header(line):
         m = re.match('^(\S+):\s*(.*)', line, re.IGNORECASE)
@@ -131,6 +136,10 @@ def filter_headers(inputs):
             dt = parse_date(value)
             if dt:
                 return "Date: " + dt.strftime("%A %B %d")
+
+        if field == 'subject':
+            subject = re.sub(r'(.+?)\s*\(?Re:.*', '\\1', value)
+            return "Subject: " + subject
 
         return line
 
@@ -180,7 +189,7 @@ def main():
             continue
 
         body = "".join(bodyinputs).strip()
-        print filter_body_text(body)
+        print filter_body_text(body) + "\n"
 
 if __name__ == "__main__":
     main()
