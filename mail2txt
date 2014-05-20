@@ -43,7 +43,7 @@ def decode_payload(message):
         if m:
             charset = m.group(1)
             try:
-                payload = codecs.decode(payload, charset)
+                payload = codecs.encode(codecs.decode(payload, charset), 'utf8', 'ignore')
             except:
                 pass
 
