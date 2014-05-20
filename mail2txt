@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Convert an e-mail to a simple text format
+"""Convert a raw encoded e-mail to text
 
 * Extract body text from multi-part (e-mail with attachments)
 * Decrypts if necessary
@@ -15,12 +15,6 @@ import email
 import getopt
 import quopri
 import codecs
-import string
-
-import time
-import rfc822
-
-from datetime import datetime
 
 import re
 
@@ -66,100 +60,9 @@ def get_body_text(message):
         if 'encrypted message' in part['content-description']:
             return get_body_text(email.message_from_string(decode_payload(part)))
 
-def split_quoted(body):
-    def match(s):
-        
-        m = re.match(r'(.*)^On\s[^\r\n]*wrote:\s*$(.*)', s, re.MULTILINE | re.DOTALL)
-        if m:
-            return m
-
-        m = re.match(r'(.*?)((?:^>+\s).*)', s, re.DOTALL | re.MULTILINE)
-        if m:
-            return m
-
-        return
-
-    m = match(body)
-    if not m:
-        return body, ''
-
-    prequote, postquote = m.groups()
-
-    def f(s):
-        return s.strip()
-
-    return f(prequote), f(postquote)
-
-def extract_inline_reply(quoted):
-    """Count number of lines of an inline reply"""
-
-    def parse_quoted(quoted):
-        top = []
-        middle = []
-        bottom = []
-
-        for line in quoted.splitlines():
-            if re.match(r'^>', line):
-                middle += bottom
-                bottom = []
-
-                middle.append(line)
-            else:
-                if not middle:
-                    top.append(line)
-                else:
-                    bottom.append(line)
-
-        def f(lines):
-            return "\n".join(lines)
-
-        return f(top), f(middle), f(bottom)
-
-    top, middle, bottom = parse_quoted(quoted)
-
-    reply_lines = [ line for line in middle.splitlines() 
-                    if line.strip() and not line.startswith('>') ]
-
-    if not reply_lines:
-        return
-
-    return "\n".join(reply_lines)
-    
-def filter_body_text(body):
-    body, quoted = split_quoted(body)
-
-    sio = StringIO()
-
-    # remove strip links
-    body = re.sub(r'https?://\S+', '', body)
-    body = re.sub(r'[=~\-]{3,}', ' ', body)
-    
-    whitelist = string.digits + string.letters + string.punctuation + " \n"
-    body = filter(lambda x: x in whitelist, body)
-
-    linebreak = False
-    for line in body.splitlines():
-        line = line.strip()
-        if line:
-            if linebreak:
-                print >> sio, "\n"
-                linebreak = False
-
-            print >> sio, line,
-        else:
-            linebreak = True
-    
-    inline_reply = extract_inline_reply(quoted)
-    if inline_reply:
-        print >> sio, "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
-
-    return sio.getvalue().strip()
-
 def mailsimplify(fp):
     old = email.message_from_file(fp)
     text, content_type = get_body_text(old)
-
-    #text = filter_body_text(text)
 
     if content_type is None:
         content_type = "text/plain"
@@ -173,16 +76,6 @@ def mailsimplify(fp):
 
     return new
 
-def parse_date(date):
-    if not date:
-        return
-
-    parsed = rfc822.parsedate(date)
-    if not parsed:
-        return
-
-    return datetime.fromtimestamp(time.mktime(parsed))
-
 def mail2simpletext(fp):
     m = mailsimplify(fp)
 
@@ -190,14 +83,9 @@ def mail2simpletext(fp):
     def header(field):
         return m[field].replace('\n', '').replace('\t', ' ')
         
-    # strip email addresses
-    #sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', header('From'))
     print >> sio, "From: " + header('From')
     print >> sio, "To: " + header('To')
 
-    #dt = parse_date(header('Date'))
-    #if dt:
-    #    print >> sio, "Date: " + dt.strftime("%A %B %d")
     print >> sio, 'Date: ' + header('Date')
     print >> sio, "Subject: " + header('Subject')
 
