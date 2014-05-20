@@ -44,13 +44,14 @@ def decode_payload(message):
     if message['content-transfer-encoding'] == 'quoted-printable':
         payload = quopri.decodestring(payload)
 
-    m = re.search(r'charset=([\w\d\-]+)', message['content-type'])
-    if m:
-        charset = m.group(1)
-        try:
-            payload = codecs.decode(payload, charset)
-        except:
-            pass
+    if message['content-type']:
+        m = re.search(r'charset=([\w\d\-]+)', message['content-type'])
+        if m:
+            charset = m.group(1)
+            try:
+                payload = codecs.decode(payload, charset)
+            except:
+                pass
 
     return payload
 
@@ -158,7 +159,7 @@ def mailsimplify(fp):
     old = email.message_from_file(fp)
     text, content_type = get_body_text(old)
 
-    text = filter_body_text(text)
+    #text = filter_body_text(text)
 
     if content_type is None:
         content_type = "text/plain"
@@ -190,13 +191,14 @@ def mail2simpletext(fp):
         return m[field].replace('\n', '').replace('\t', ' ')
         
     # strip email addresses
-    sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', header('From'))
-    print >> sio, "From: " + sender
+    #sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', header('From'))
+    print >> sio, "From: " + header('From')
+    print >> sio, "To: " + header('To')
 
-    dt = parse_date(header('Date'))
-    if dt:
-        print >> sio, "Date: " + dt.strftime("%A %B %d")
-
+    #dt = parse_date(header('Date'))
+    #if dt:
+    #    print >> sio, "Date: " + dt.strftime("%A %B %d")
+    print >> sio, 'Date: ' + header('Date')
     print >> sio, "Subject: " + header('Subject')
 
     print >> sio
