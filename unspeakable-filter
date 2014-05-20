@@ -50,11 +50,14 @@ def filter_body_text(body):
     # strip links
     body = re.sub(r'https?://\S+', '', body)
 
-    # strip underlines
-    body = re.sub(r'[=~\-\+]{3,}', ' ', body)
+    # strip repeating sequences of non-letters (e.g., underlines)
+    body = re.sub(r'([^\w\d])\1{2,}', ' ', body)
 
     # put each list item on its own line
     body = re.sub(r'^(\s*)[\-\*\+\~]+\s*', '\n\\1', body, 0, re.MULTILINE)
+
+    # strip link references (e.g., [1])
+    body = re.sub(r'\[\d+\]', ' ', body)
 
     # strip long sequences of numbers
     body = re.sub(r'(\s+\d+\s+){3,}', ' ', body)
