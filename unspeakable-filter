@@ -60,14 +60,15 @@ def filter_body_text(body):
     body = re.sub(r'\[\d+\]', ' ', body)
 
     # strip long sequences of numbers
-    body = re.sub(r'(\s+\d+\s+){3,}', ' ', body)
-    
+    body = re.sub(r'\b(\d+\s*){3,}', ' ', body)
+
     whitelist = string.digits + string.letters + string.punctuation + " \n"
     body = filter(lambda x: x in whitelist, body)
 
     linebreak = False
     for line in body.splitlines():
         line = line.rstrip()
+
         if line:
             if linebreak:
                 print >> sio, "\n"
