@@ -240,7 +240,7 @@ def main():
         if headerinputs:
             filtered = filter_headers(headerinputs)
             if filtered:
-                print filtered
+                print filtered.strip()
 
         if not bodyinputs:
             continue
