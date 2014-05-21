@@ -19,6 +19,31 @@ def parse_date(date):
 
     return datetime.fromtimestamp(time.mktime(parsed))
 
+def measure_proseness(paragraph):
+    if not paragraph:
+        return paragraph
+
+    def filter_normal_punctuation(word):
+        return re.sub(r"^['\"\(]?([A-Za-z]+)[\.,]?[\)'\"]?[\!\?\.\,]?$", '\\1', word) 
+
+    def filter_paragraph(p):
+        p = re.sub(r'^\s*\d[\)\.]', '', p)
+        p = re.sub('\s&\s', ' and ', p)
+        p = re.sub(r'[!:?]{1,2}\s*$', '', p)
+        return p.strip()
+
+    # filter normal prose punctuation from words
+    words = [ filter_normal_punctuation(word)
+              for word in re.split(r'\s+', filter_paragraph(paragraph)) ]
+
+    nonletters = filter(lambda c: c not in string.letters, "".join(words))
+    nonwords = [ word for word in words if not re.match(r"^[A-Za-z]+$", word) ]
+
+    return float(len(nonletters))/len(paragraph) * float(len(nonwords)**2 * 2)/len(words)
+
+def is_prose(paragraph):
+    return measure_proseness(paragraph) < 1
+
 def filter_body_text(body):
     def split_quoted(body):
         def match(s):
@@ -45,10 +70,6 @@ def filter_body_text(body):
         return f(prequote), f(postquote)
 
     body, quoted = split_quoted(body)
-    sio = StringIO()
-
-    # strip links
-    body = re.sub(r'https?://\S+', '', body)
 
     # strip repeating sequences of non-letters (e.g., underlines)
     body = re.sub(r'([^\w\d])\1{2,}', ' ', body)
@@ -56,28 +77,52 @@ def filter_body_text(body):
     # put each list item on its own line
     body = re.sub(r'^(\s*)[\-\*\+\~]+\s*', '\n\\1', body, 0, re.MULTILINE)
 
+    # put each numbered list item on its own line
+    body = re.sub(r'^(\s*)(\d[\)\.])', '\n\\1\\2', body, 0, re.MULTILINE)
+
+    # strip links
+    body = re.sub(r'https?://\S+', '', body)
+
     # strip link references (e.g., [1])
     body = re.sub(r'\[\d+\]', ' ', body)
 
+    def parse_paragraphs(lines):
+        linebreak = False
+        paragraph = ""
+        for line in lines:
+            line = line.rstrip()
+
+            if line:
+                if linebreak:
+                    yield paragraph
+
+                    linebreak = False
+                    paragraph = ""
+
+                paragraph += line + " "
+            else:
+                linebreak = True
+
+        if paragraph:
+            yield paragraph
+
+    sio = StringIO()
+    for paragraph in parse_paragraphs(body.splitlines()):
+
+        if is_prose(paragraph):
+            print >> sio, "\n" + paragraph
+
+    body = sio.getvalue()
+    
     # strip long sequences of numbers
     body = re.sub(r'\b([ \d\-]+){6,}', ' ', body)
+
+    # strip absolute file paths
+    body = re.sub(r'(^|\s)/\S+/\S+', '', body)
 
     whitelist = string.digits + string.letters + string.punctuation + " \n"
     body = filter(lambda x: x in whitelist, body)
 
-    linebreak = False
-    for line in body.splitlines():
-        line = line.rstrip()
-
-        if line:
-            if linebreak:
-                print >> sio, "\n"
-                linebreak = False
-
-            print >> sio, line,
-        else:
-            linebreak = True
-    
     def extract_inline_reply(quoted):
         """Count number of lines of an inline reply"""
 
@@ -115,9 +160,9 @@ def filter_body_text(body):
         
     inline_reply = extract_inline_reply(quoted)
     if inline_reply:
-        print >> sio, "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
+        body += "\nDetected %d word inline reply" % len(re.split(r'\s+', inline_reply))
 
-    return sio.getvalue().strip()
+    return body
 
 def filter_headers(inputs):
     def filter_header(line):
