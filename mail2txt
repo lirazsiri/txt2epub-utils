@@ -12,6 +12,8 @@ Options:
 
 import sys
 import email
+import email.header
+
 import getopt
 import quopri
 import codecs
@@ -112,13 +114,32 @@ def mailsimplify(fp):
 
     return new
 
+def filter_printable(s):
+    return filter(lambda c: c in string.printable, s)
+
 def mail2txt(fp):
     m = mailsimplify(fp)
 
     sio = StringIO()
     def header(field):
-        return m[field].replace('\n', '').replace('\t', ' ')
+
+        def simplify_whitespace(s):
+            return re.sub(r'[\n\t]', ' ', s)
         
+        value = simplify_whitespace(m[field])
+
+        value, encoding = email.header.decode_header(value)[0]
+        try:
+            if encoding:
+                value = codecs.decode(value, encoding)
+        except:
+            pass
+
+        value = simplify_whitespace(value)
+        value = filter_printable(value)
+
+        return value
+
     print >> sio, "From: " + header('From')
     print >> sio, "To: " + header('To')
 
@@ -131,7 +152,7 @@ def mail2txt(fp):
     text = sio.getvalue()
 
     # encoding of non-printable characters is hell
-    text = filter(lambda c: c in string.printable, text)
+    text = filter_printable(text)
 
     return text
 
