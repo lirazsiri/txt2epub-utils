@@ -100,7 +100,7 @@ def mailsimplify(fp):
 
     return new
 
-def mail2text(fp):
+def mail2txt(fp):
     m = mailsimplify(fp)
 
     sio = StringIO()
@@ -147,7 +147,7 @@ def main():
         else:
             input_fp = file(input)
 
-        text = mail2text(input_fp)
+        text = mail2txt(input_fp)
         if not inplace:
             print codecs.encode(text, 'ascii', 'ignore')
 
