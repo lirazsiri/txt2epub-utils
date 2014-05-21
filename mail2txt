@@ -15,12 +15,16 @@ import email
 import getopt
 import quopri
 import codecs
+import string
 
 from htmlentitydefs import name2codepoint
 
 import re
 
 import executil
+
+class Error(Exception):
+    pass
 
 from StringIO import StringIO
 
@@ -59,8 +63,16 @@ def get_body_text(message):
         if 'text/plain' in part['content-type']:
             return decode_payload(part), part['content-type']
 
-        if 'encrypted message' in part['content-description']:
+        content_description = part.get('content-description')
+        if content_description and 'encrypted message' in content_description:
             return get_body_text(email.message_from_string(decode_payload(part)))
+
+    # go one layer deeper if we can't find a message in the first layer
+    payload = message.get_payload()
+    if payload:
+        return get_body_text(payload[0])
+
+    raise Error("can't get message body")
 
 def htmlentitydecode(s):
     return re.sub('&(%s);' % '|'.join(name2codepoint),
@@ -117,7 +129,9 @@ def mail2txt(fp):
     print >> sio, m.get_payload()
 
     text = sio.getvalue()
-    text = codecs.encode(text, 'ascii', 'ignore')
+
+    # encoding of non-printable characters is hell
+    text = filter(lambda c: c in string.printable, text)
 
     return text
 
