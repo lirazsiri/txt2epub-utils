@@ -52,6 +52,10 @@ def filter_body_text(body):
             if m:
                 return m
 
+            m = re.match(r'(.*?)(?:^[^\n]+wrote:$\s*)?((?:^>+\s).*)', s, re.DOTALL | re.MULTILINE)
+            if m:
+                return m
+
             m = re.match(r'(.*?)((?:^>+\s).*)', s, re.DOTALL | re.MULTILINE)
             if m:
                 return m
