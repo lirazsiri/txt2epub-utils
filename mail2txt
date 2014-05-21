@@ -16,6 +16,8 @@ import getopt
 import quopri
 import codecs
 
+import HTMLParser
+
 import re
 
 import executil
@@ -43,7 +45,7 @@ def decode_payload(message):
         if m:
             charset = m.group(1)
             try:
-                payload = codecs.encode(codecs.decode(payload, charset), 'utf8', 'ignore')
+                payload = codecs.latin_1_encode(codecs.decode(payload, charset))[0]
             except:
                 pass
 
@@ -60,9 +62,24 @@ def get_body_text(message):
         if 'encrypted message' in part['content-description']:
             return get_body_text(email.message_from_string(decode_payload(part)))
 
+def buf2txt(buf):
+
+    buf = re.sub('<BR>', '\n', buf, 0, re.IGNORECASE)
+    # strip tags
+    buf = re.sub(r'</?\w+[^>]*>', '', buf)
+
+    buf = HTMLParser.HTMLParser().unescape(buf)
+    buf = buf.replace(u'\xa0', ' ')
+
+    return codecs.latin_1_encode(buf)[0]
+
 def mailsimplify(fp):
     old = email.message_from_file(fp)
     text, content_type = get_body_text(old)
+
+    if content_type:
+        if 'text/html' in content_type:
+            text = buf2txt(text)
 
     if content_type is None:
         content_type = "text/plain"
