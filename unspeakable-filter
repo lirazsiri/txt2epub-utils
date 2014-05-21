@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Filter unspeakable text - preprocessor that increases signal to noise ratio
+"""
 
 import re
 import fileinput
