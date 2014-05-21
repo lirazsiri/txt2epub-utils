@@ -195,7 +195,7 @@ def filter_headers(inputs):
             subject = re.sub(r'(.+?)\s*\(?Re:.*', '\\1', value)
             return "Subject: " + subject
 
-        return line
+        return
 
     sio = StringIO()
     for line in inputs:
@@ -213,7 +213,7 @@ def parse(lines):
     lastline_was_header = False
 
     for line in lines:
-        m = re.match('^(From|Subject|Date|To):\s*(.*)', line, re.IGNORECASE)
+        m = re.match('^(MIME-Version|Content-Type|From|Subject|Date|To):\s*(.*)', line, re.IGNORECASE)
         if m:
             if not lastline_was_header and bodylines:
                 yield (headerlines, bodylines)
