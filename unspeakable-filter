@@ -76,7 +76,7 @@ def filter_body_text(body):
     body, quoted = split_quoted(body)
 
     # strip repeating sequences of non-letters (e.g., underlines)
-    body = re.sub(r'([^\w\d])\1{2,}', ' ', body)
+    body = re.sub(r'([^A-Za-z0-9])\1{2,}', ' ', body)
 
     # put each list item on its own line
     body = re.sub(r'^(\s*)[\-\*\+\~]+\s*', '\n\\1', body, 0, re.MULTILINE)
@@ -183,6 +183,7 @@ def filter_headers(inputs):
         # strip email addresses
         if field == 'from':
             sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', value)
+            sender = re.sub(r'([^\[\]]+?)\s*\[mailto:.*?\]\s*', '\\1', value)
             return "From: " + sender
 
         if field == 'date':
