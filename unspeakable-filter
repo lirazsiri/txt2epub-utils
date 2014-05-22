@@ -185,9 +185,9 @@ def filter_headers(inputs):
 
         # strip email addresses
         if field == 'from':
-            sender = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', value)
-            sender = re.sub(r'([^\[\]]+?)\s*\[mailto:.*?\]\s*', '\\1', value)
-            return "From: " + sender
+            value = re.sub(r'([^<>]+?)\s*<.*?>\s*', '\\1', value)
+            value = re.sub(r'([^\[\]]+?)\s*\[mailto:.*?\]\s*', '\\1', value)
+            return "From: " + value
 
         if field == 'date':
             dt = parse_date(value)
