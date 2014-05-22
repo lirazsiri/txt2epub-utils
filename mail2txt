@@ -113,9 +113,12 @@ def html2txt(buf):
 
     return buf
 
+def filter_printable(s):
+    return filter(lambda c: c in string.printable, s)
+
 def decode_header(value):
     def simplify_whitespace(s):
-        return re.sub(r'[\n\t]', ' ', s)
+        return re.sub(r'[\n\t]+', ' ', s)
     
     value = simplify_whitespace(value)
 
@@ -131,7 +134,7 @@ def decode_header(value):
 
     return value
 
-def mailsimplify(fp):
+def mail2txt(fp):
     old = email.message_from_file(fp)
     text, content_type = get_body_text(old)
 
@@ -139,23 +142,14 @@ def mailsimplify(fp):
         if 'text/html' in content_type:
             text = html2txt(text)
 
-    content_type = "text/plain"
-
-    new = email.Message.Message()
-
+    sio = StringIO()
     for field in ("Subject", "From", "To", "Date"):
-        new.add_header(field, decode_header(old[field]))
+        print >> sio, "%s: %s" % (field, decode_header(old[field]))
 
-    new.set_payload(filter_printable(text))
-    new.set_type(content_type)
+    print >> sio
+    print >> sio, filter_printable(text),
 
-    del new['MIME-Version']
-    del new['Content-Type']
-
-    return new
-
-def filter_printable(s):
-    return filter(lambda c: c in string.printable, s)
+    return sio.getvalue()
 
 def main():
     try:
@@ -183,8 +177,7 @@ def main():
         else:
             input_fp = file(input)
 
-        mail = mailsimplify(input_fp)
-        text = mail.as_string()
+        text = mail2txt(input_fp)
         if not inplace:
             print text
 
