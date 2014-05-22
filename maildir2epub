@@ -1,0 +1,54 @@
+#!/bin/bash
+# Syntax: maildir2epub path/to/file.epub path/to/maildir
+# Environment variables:
+#
+#       FILTER     Filter mail (e.g., "cat" to disable) 
+#                  Default: unspeakable-filter
+# 
+#
+
+epub=$1
+maildir=$2
+
+if [[ $# < 2 ]]; then
+    cat $0 | sed -n '2,/^[^#]/p' | sed -n 's/^# //p'
+    exit 1
+fi
+set ${FILTER:="unspeakable-filter"}
+
+make_title() {
+    perl -ne '
+        if(/^Subject: (.*)/i) { $s = $1 };
+        if(/^From: (\S+)/i) { $f = $1 };
+        END {
+            $s =~ s/[^\w\d ]//g;
+            @w = ( $s =~ /(\S+)/g );
+            $s = join(" ", @w[0..4])."-" if @w > 5;
+            print "From $f about $s\n";
+        };' $1
+}
+
+if [ -d "$maildir/cur" ]; then
+    maildir="$maildir/cur"
+fi
+
+tmp=$(mktemp --tmpdir=$TMPDIR -d maildir2epub.XXXXXX)
+trap "[ -d $tmp ] && rm -rf $tmp" INT TERM EXIT
+
+if [ -z "$FILTER" ]; then
+    FILTER=cat
+fi
+
+seq=1
+for f in $maildir/*; do
+    basename=$(basename $f)
+
+    mail2txt $f | $FILTER > $tmp/$basename
+
+    dest=$tmp/$((seq++))
+    mkdir $dest
+
+    mv $tmp/$basename "$dest/$(make_title $tmp/$basename).txt"
+done
+
+txt2epub --keep-line-breaks $epub $tmp/*/*
