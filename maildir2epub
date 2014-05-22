@@ -51,4 +51,9 @@ for f in $maildir/*; do
     mv $tmp/$basename "$dest/$(make_title $tmp/$basename).txt"
 done
 
-txt2epub --keep-line-breaks $epub $tmp/*/*
+email_count=$(echo $maildir/* | wc -w)
+title="$email_count emails from $(date "+%Y-%m-%d")"
+
+echo "Saving '$title' as $epub"
+txt2epub --title="$title" --creator="$(whoami)" --keep-line-breaks $epub $tmp/*/*
+
