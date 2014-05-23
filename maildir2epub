@@ -21,11 +21,15 @@ make_title() {
         if(/^Subject: (.*)/i) { $s = $1 };
         if(/^From: (\S+)/i) { $f = $1 };
         END {
-            $s =~ s/[^\w\d ]//g;
             @w = ( $s =~ /(\S+)/g );
             $s = join(" ", @w[0..4])."-" if @w > 5;
-            $s =~ s/\s+/_/g;
-            print "From_${f}_about_${s}\n";
+
+            $title = "From $f about $s\n";
+
+            $title =~ s/\s+/_/g;
+            $title =~ s/[^\w\d ]//g;
+
+            print $title;
         };' $1
 }
 
