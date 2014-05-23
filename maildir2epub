@@ -24,7 +24,8 @@ make_title() {
             $s =~ s/[^\w\d ]//g;
             @w = ( $s =~ /(\S+)/g );
             $s = join(" ", @w[0..4])."-" if @w > 5;
-            print "From $f about $s\n";
+            $s =~ s/\s+/_/g;
+            print "From_${f}_about_${s}\n";
         };' $1
 }
 
@@ -40,7 +41,7 @@ if [ -z "$FILTER" ]; then
 fi
 
 seq=1
-for f in $maildir/*; do
+for f in $(ls -rt $maildir/*); do
     basename=$(basename $f)
 
     mail2txt $f | $FILTER > $tmp/$basename
@@ -55,5 +56,7 @@ email_count=$(echo $maildir/* | wc -w)
 title="$email_count emails from $(date "+%Y-%m-%d")"
 
 echo "Saving '$title' as $epub"
-txt2epub --title="$title" --creator="$(whoami)" --keep-line-breaks $epub $tmp/*/*
 
+emails=$(cd $tmp; ls */* | sort -n | sed "s|^|$tmp/|g")
+
+txt2epub --title="$title" --creator="$(whoami)" --keep-line-breaks $epub $emails
