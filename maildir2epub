@@ -48,7 +48,7 @@ seq=1
 for f in $(ls -rt $maildir/*); do
     basename=$(basename $f)
 
-    mail2txt $f | $FILTER > $tmp/$basename
+    textmail $f | $FILTER > $tmp/$basename
 
     dest=$tmp/$((seq++))
     mkdir $dest
